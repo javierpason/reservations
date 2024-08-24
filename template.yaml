@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  LoanPro Challenge Reservations
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+    MemorySize: 128
+
+Resources:
+  # ReservationApiLogGroup:
+  #   Type: AWS::Logs::LogGroup
+  #   Properties:
+  #     RetentionInDays: 30   
+  ReservationsDBTable:
+    Type: "AWS::DynamoDB::Table"
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: "reservation_id"
+          AttributeType: "S"
+        - AttributeName: "timestamp"
+          AttributeType: "N"          
+      KeySchema:
+        - AttributeName: "reservation_id"
+          KeyType: "HASH"
+        - AttributeName: "timestamp"
+          KeyType: "RANGE"
+
+  ReservationsAPIGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: ReservationsApi
+      StageName: production
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      # AccessLogSetting:
+      #   DestinationArn: !GetAtt ReservationApiLogGroup.Arn
+      #   Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
+    
+
+  ReservationFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: src/reservations/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReservationsDBTable
+        - Version: '2012-10-17'
+          Statement:
+              Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource:
+                  - '*'
+        
+      Environment:
+        Variables:
+          # Make table name accessible as environment variable from function code during execution
+          TABLE_NAME: !Ref ReservationsDBTable
+      Architectures:
+      - x86_64
+      Events:
+        Health:
+          Type: Api 
+          Properties:
+            RestApiId: !Ref ReservationsAPIGateway
+            Path: /health
+            Method: get
+        ListReservation:
+          Type: Api 
+          Properties:
+            RestApiId: !Ref ReservationsAPIGateway
+            Path: /reservations
+            Method: get
+        GetReservation:
+          Type: Api 
+          Properties:
+            RestApiId: !Ref ReservationsAPIGateway
+            Path: /reservations/{id}
+            Method: get
+        SaveReservation:
+          Type: Api 
+          Properties:
+            RestApiId: !Ref ReservationsAPIGateway
+            Path: /reservations
+            Method: post
+        UpdateReservation:
+          Type: Api 
+          Properties:
+            RestApiId: !Ref ReservationsAPIGateway
+            Path: /reservations
+            Method: patch
+

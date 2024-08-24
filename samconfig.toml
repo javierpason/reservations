@@ -1,0 +1,32 @@
+# More information about the configuration file can be found here:
+# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
+version = 0.1
+
+[default]
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+stack_name = "LoanProReservations"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-6prkls8i6pad"
+s3_prefix = "Reservations"
+region = "us-east-1"
+image_repositories = []
+tags= "LoanPro=\"Challenge\""
+
+
+[default.sync.parameters]
+watch = true
+
+[default.local_start_api.parameters]
+warm_containers = "EAGER"
+
+[default.local_start_lambda.parameters]
+warm_containers = "EAGER"
