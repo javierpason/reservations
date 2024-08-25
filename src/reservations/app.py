@@ -4,12 +4,14 @@ import json
 from custom_encoder import CustomEncoder
 import logging
 import datetime
+import os
 
+TABLE_NAME = os.environ.get("TABLE_NAME")
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-dynamodbTableName = 'reservations'
+# dynamodbTableName = TABLE_NAME
 dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table(dynamodbTableName)
+table = dynamodb.Table(TABLE_NAME)
 
 getMethod = 'GET'
 postMethod = 'POST'
@@ -26,8 +28,8 @@ def lambda_handler(event, context):
     path = event['path']
     if httpMethod == getMethod and path == healthPath:
         response = buildResponse(200)  
-    elif httpMethod == getMethod and path == reservationPath:
-        response = getReservation(event['queryStringParameters']['reservation_id'],event['queryStringParameters']['timestamp'])
+    # elif httpMethod == getMethod and path == reservationPath:
+    #     response = getReservation(event['queryStringParameters']['reservation_id'],event['queryStringParameters']['timestamp'])
     elif httpMethod == getMethod and path == reservationPath:
         response = getReservations()
     elif httpMethod == postMethod and path == reservationPath:
@@ -77,14 +79,15 @@ def getReservations():
 def saveReservation(requestBody):
     try:
         reservation_id = str(uuid.uuid4())
-        timestamp = datetime.datetime.now().isoformat()
-
+        created = datetime.datetime.now().isoformat()
+        timestamp = datetime.datetime.now().timestamp()
         reservation_data = {
             'reservation_id': reservation_id,
             'user': requestBody['user'],
             'details': requestBody['details'],
             'status': 'created',
-            'timestamp': timestamp
+            'timestamp': int(timestamp),
+            'created': created
         }
         table.put_item(Item=reservation_data)
         body = {

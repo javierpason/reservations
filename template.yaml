@@ -13,13 +13,36 @@ Resources:
   DynamoDBStreamFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: loanpro-reservations-dbstream
       CodeUri: src/dynamoDBstream/
       Handler: app.lambda_handler
       Runtime: python3.12
       Policies:
-        - AWSLambdaBasicExecutionRole
+        # - AWSLambdaBasicExecutionRole
         - DynamoDBReadPolicy:
             TableName: !Ref ReservationsDBTable
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:GetShardIterator
+              - dynamodb:DescribeStream
+              - dynamodb:GetRecords
+            Resource: '*'
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - events:PutEvents              
+            Resource: '*'
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents           
+            Resource: '*'          
     MemorySize: 3008
     Timeout: 900
     Events:
@@ -27,19 +50,15 @@ Resources:
         Type: DynamoDB
         Properties:
           Stream: !GetAtt ReservationsDBTable.StreamArn
-          BatchSize: 100
+          BatchSize: 10
           StartingPosition: TRIM_HORIZON
           MaximumRetryAttempts: 1
   
-  # MyDynamoDBEventMapping:
-  #   Type: AWS::Lambda::EventSourceMapping
-  #   Properties:
-  #     EventSourceArn: !GetAtt ReservationsDBTable.StreamArn
-  #     FunctionName: !GetAtt DynamoDBStreamFunction.Arn
   # DynamoDB Table
   ReservationsDBTable:
     Type: "AWS::DynamoDB::Table"
     Properties:
+      TableName: "loanpro-reservations"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: "reservation_id"
@@ -54,7 +73,20 @@ Resources:
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
 
+  # MyDynamoDBEventMapping:
+  #   Type: AWS::Lambda::EventSourceMapping
+  #   Properties:
+  #     EventSourceArn: !GetAtt ReservationsDBTable.StreamArn
+  #     FunctionName: !GetAtt DynamoDBStreamFunction.Arn
 
+  DataTableStream:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1 #trigger one lambda per document
+      Enabled: True
+      EventSourceArn: !GetAtt ReservationsDBTable.StreamArn
+      FunctionName: !GetAtt DynamoDBStreamFunction.Arn
+      StartingPosition: LATEST #always start at the tail of the stream
 
   # API Gateway
   ReservationsAPIGateway:
@@ -62,6 +94,7 @@ Resources:
     Properties:
       Name: ReservationsApi
       StageName: production
+      EndpointConfiguration: REGIONAL
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
@@ -71,6 +104,7 @@ Resources:
   ReservationFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: loanpro-reservations
       CodeUri: src/reservations/
       Handler: app.lambda_handler
       Runtime: python3.12
@@ -84,6 +118,12 @@ Resources:
               - logs:CreateLogGroup
               - logs:CreateLogStream
               - logs:PutLogEvents
+            Resource: '*'
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:PutItem
             Resource: '*'
       Environment:
         Variables:
@@ -143,14 +183,14 @@ Resources:
       VisibilityTimeout: 60   
       ReceiveMessageWaitTimeSeconds: 20
 
-  SQSQueueEventBridgeRuleDLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: loanpro-reservation-requests-rule-dlq.fifo
-      ContentBasedDeduplication: true     
-      FifoQueue: 'true'  
-      VisibilityTimeout: 60   
-      ReceiveMessageWaitTimeSeconds: 20
+  # SQSQueueEventBridgeRuleDLQ:
+  #   Type: AWS::SQS::Queue
+  #   Properties:
+  #     QueueName: loanpro-reservation-requests-rule-dlq.fifo
+  #     ContentBasedDeduplication: true     
+  #     FifoQueue: 'true'  
+  #     VisibilityTimeout: 60   
+  #     ReceiveMessageWaitTimeSeconds: 20
  
   EventBridgeLoanProRule:
     Type: AWS::Events::Rule
@@ -185,4 +225,51 @@ Resources:
             Resource: !GetAtt SQSQueueEventBridge.Arn
       Queues:
         - !Ref SQSQueueEventBridge
+
+  # Lambda will be link to EventBridge Rule
+  SQSToSNSFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: loanpro-sqs-to-sns
+      CodeUri: src/sqstosns/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Timeout: 30
+      Policies:
+       # - AWSLambdaBasicExecutionRole
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+            Resource: !GetAtt SQSQueueEventBridge.Arn
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - sns:Publish           
+            Resource: "*" 
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents           
+            Resource: '*'
+      Events:
+        SQSToSNS:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt SQSQueueEventBridge.Arn
+            BatchSize: 10   
+
+  SnsTopicFinanceBooking:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: loanpro-reservations 
+        
+   
 
