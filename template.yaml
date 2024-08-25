@@ -3,17 +3,40 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   LoanPro Challenge Reservations
 
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
     Timeout: 3
     MemorySize: 128
 
 Resources:
-  # ReservationApiLogGroup:
-  #   Type: AWS::Logs::LogGroup
+  # Lambda Function triggered by DynamoDB Stream
+  DynamoDBStreamFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/dynamoDBstream/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBReadPolicy:
+            TableName: !Ref ReservationsDBTable
+    MemorySize: 3008
+    Timeout: 900
+    Events:
+      Stream:
+        Type: DynamoDB
+        Properties:
+          Stream: !GetAtt ReservationsDBTable.StreamArn
+          BatchSize: 100
+          StartingPosition: TRIM_HORIZON
+          MaximumRetryAttempts: 1
+  
+  # MyDynamoDBEventMapping:
+  #   Type: AWS::Lambda::EventSourceMapping
   #   Properties:
-  #     RetentionInDays: 30   
+  #     EventSourceArn: !GetAtt ReservationsDBTable.StreamArn
+  #     FunctionName: !GetAtt DynamoDBStreamFunction.Arn
+  # DynamoDB Table
   ReservationsDBTable:
     Type: "AWS::DynamoDB::Table"
     Properties:
@@ -27,8 +50,13 @@ Resources:
         - AttributeName: "reservation_id"
           KeyType: "HASH"
         - AttributeName: "timestamp"
-          KeyType: "RANGE"
+          KeyType: "RANGE"     
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
 
+
+
+  # API Gateway
   ReservationsAPIGateway:
     Type: AWS::Serverless::Api
     Properties:
@@ -38,13 +66,10 @@ Resources:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
-      # AccessLogSetting:
-      #   DestinationArn: !GetAtt ReservationApiLogGroup.Arn
-      #   Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
-    
 
+  # Reservation Function
   ReservationFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/reservations/
       Handler: app.lambda_handler
@@ -54,49 +79,110 @@ Resources:
             TableName: !Ref ReservationsDBTable
         - Version: '2012-10-17'
           Statement:
-              Effect: Allow
-              Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource:
-                  - '*'
-        
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: '*'
       Environment:
         Variables:
-          # Make table name accessible as environment variable from function code during execution
           TABLE_NAME: !Ref ReservationsDBTable
       Architectures:
-      - x86_64
+        - x86_64
       Events:
         Health:
-          Type: Api 
+          Type: Api
           Properties:
             RestApiId: !Ref ReservationsAPIGateway
             Path: /health
             Method: get
         ListReservation:
-          Type: Api 
+          Type: Api
           Properties:
             RestApiId: !Ref ReservationsAPIGateway
             Path: /reservations
             Method: get
         GetReservation:
-          Type: Api 
+          Type: Api
           Properties:
             RestApiId: !Ref ReservationsAPIGateway
             Path: /reservations/{id}
             Method: get
         SaveReservation:
-          Type: Api 
+          Type: Api
           Properties:
             RestApiId: !Ref ReservationsAPIGateway
             Path: /reservations
             Method: post
         UpdateReservation:
-          Type: Api 
+          Type: Api
           Properties:
             RestApiId: !Ref ReservationsAPIGateway
             Path: /reservations
             Method: patch
+
+  SQSQueueEventBridge:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: loanpro-reservation-requests.fifo
+      ContentBasedDeduplication: true     
+      FifoQueue: 'true'  
+      VisibilityTimeout: 60   
+      ReceiveMessageWaitTimeSeconds: 20
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SQSQueueEventBridgeDLQ.Arn
+        maxReceiveCount: 1
+
+  SQSQueueEventBridgeDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: loanpro-reservation-requests-dlq.fifo
+      ContentBasedDeduplication: true     
+      FifoQueue: 'true'  
+      VisibilityTimeout: 60   
+      ReceiveMessageWaitTimeSeconds: 20
+
+  SQSQueueEventBridgeRuleDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: loanpro-reservation-requests-rule-dlq.fifo
+      ContentBasedDeduplication: true     
+      FifoQueue: 'true'  
+      VisibilityTimeout: 60   
+      ReceiveMessageWaitTimeSeconds: 20
+ 
+  EventBridgeLoanProRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventBusName: default
+      Name: loanpro-reservations-rule
+      EventPattern:
+        source: ["loanpro.reservation.service"]
+      State: ENABLED
+      Targets:
+        - Id: queue-target
+          Arn: !GetAtt SQSQueueEventBridge.Arn
+          SqsParameters:
+            MessageGroupId: messageGroupId
+          # RetryPolicy:
+          #   MaximumRetryAttempts: 1
+          # DeadLetterConfig:
+          #   Arn: !GetAtt SQSQueueEventBridgeDLQ.Arn
+
+  SqsEventBridgePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action:
+              - SQS:SendMessage
+              - kms:Encrypt
+              - kms:Decrypt
+            Resource: !GetAtt SQSQueueEventBridge.Arn
+      Queues:
+        - !Ref SQSQueueEventBridge
 
