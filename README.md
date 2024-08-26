@@ -29,7 +29,7 @@ If you haven’t already, clone the repository containing your SAM application.
 git clone https://github.com/javierpason/reservations.git
 cd <repository-directory>
 ```
-You will work on the master branch.
+You will work on the branch: feature/refactory.
 
 ### 3. **Build the SAM Application**
 
