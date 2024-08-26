@@ -14,8 +14,8 @@ def lambda_handler(event, context):
         new_image = detail.get('dynamodb', {}).get('NewImage', {})
         user = new_image.get('user', {}).get('S', 'unknown user')
         reservation_id = new_image.get('reservation_id', {}).get('S', 'unknown user')
-        status = new_image.get('status', {}).get('S', 'unknown status')
-        timestamp = new_image.get('timestamp', {}).get('S', 'unknown timestamp')
+        status = new_image.get('reservation_status', {}).get('S', 'unknown status')
+        timestamp = new_image.get('created', {}).get('S', 'unknown timestamp')
         formatted_message = f"Hello {user}, your reservation has been {status} the day {timestamp}."
         message = f"Message from SQS , reservation {reservation_id}."
         

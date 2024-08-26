@@ -101,11 +101,11 @@ Resources:
         AllowOrigin: "'*'"
 
   # Reservation Function
-  ReservationFunction:
+  ListReservationFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: loanpro-reservations
-      CodeUri: src/reservations/
+      FunctionName: loanpro-list-reservations
+      CodeUri: src/reservations/list/
       Handler: app.lambda_handler
       Runtime: python3.12
       Policies:
@@ -131,37 +131,198 @@ Resources:
       Architectures:
         - x86_64
       Events:
-        Health:
-          Type: Api
-          Properties:
-            RestApiId: !Ref ReservationsAPIGateway
-            Path: /health
-            Method: get
+        # Health:
+        #   Type: Api
+        #   Properties:
+        #     RestApiId: !Ref ReservationsAPIGateway
+        #     Path: /health
+        #     Method: get
         ListReservation:
           Type: Api
           Properties:
             RestApiId: !Ref ReservationsAPIGateway
             Path: /reservations
             Method: get
-        GetReservation:
-          Type: Api
-          Properties:
-            RestApiId: !Ref ReservationsAPIGateway
-            Path: /reservations/{id}
-            Method: get
+        # GetReservation:
+        #   Type: Api
+        #   Properties:
+        #     RestApiId: !Ref ReservationsAPIGateway
+        #     Path: /reservations/{id}
+        #     Method: get
+        # SaveReservation:
+        #   Type: Api
+        #   Properties:
+        #     RestApiId: !Ref ReservationsAPIGateway
+        #     Path: /reservations
+        #     Method: post
+        # UpdateReservation:
+        #   Type: Api
+        #   Properties:
+        #     RestApiId: !Ref ReservationsAPIGateway
+        #     Path: /reservations
+        #     Method: patch
+  
+  CreateReservationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: loanpro-create-reservations
+      CodeUri: src/reservations/create/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReservationsDBTable
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: '*'
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:PutItem
+            Resource: '*'
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ReservationsDBTable
+      Architectures:
+        - x86_64
+      Events:       
+        # GetReservation:
+        #   Type: Api
+        #   Properties:
+        #     RestApiId: !Ref ReservationsAPIGateway
+        #     Path: /reservations/{id}
+        #     Method: get
         SaveReservation:
           Type: Api
           Properties:
             RestApiId: !Ref ReservationsAPIGateway
             Path: /reservations
             Method: post
+        # UpdateReservation:
+        #   Type: Api
+        #   Properties:
+        #     RestApiId: !Ref ReservationsAPIGateway
+        #     Path: /reservations
+        #     Method: patch
+ 
+  UpdateReservationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: loanpro-update-reservations
+      CodeUri: src/reservations/update/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReservationsDBTable
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: '*'
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:PutItem
+            Resource: '*'
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ReservationsDBTable
+      Architectures:
+      - x86_64
+      Events: 
         UpdateReservation:
           Type: Api
           Properties:
             RestApiId: !Ref ReservationsAPIGateway
             Path: /reservations
-            Method: patch
+            Method: patch 
 
+  DeleteReservationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: loanpro-delete-reservations
+      CodeUri: src/reservations/delete/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReservationsDBTable
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: '*'
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:PutItem
+            Resource: '*'
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ReservationsDBTable
+      Architectures:
+      - x86_64
+      Events: 
+        UpdateReservation:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ReservationsAPIGateway
+            Path: /reservations
+            Method: put 
+
+
+  GetReservationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: loanpro-get-reservations
+      CodeUri: src/reservations/get/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:            
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: '*'
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:Query
+              - dynamodb:GetItem
+            Resource: '*'
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ReservationsDBTable
+      Architectures:
+      - x86_64
+      Events: 
+        UpdateReservation:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ReservationsAPIGateway
+            Path: /reservations/{reservation_id}/{timestamp}
+            Method: get 
+
+  
   SQSQueueEventBridge:
     Type: AWS::SQS::Queue
     Properties:
