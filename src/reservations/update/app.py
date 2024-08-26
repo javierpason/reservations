@@ -20,11 +20,3 @@ def lambda_handler(event, context):
 
     return Service.buildResponse(statusCode=200,body=response)
 
-
-# def parse_request(event):
-#     requestBody = json.loads(event['body'])
-#     reservation_id = requestBody['reservation_id']
-#     timestamp = requestBody['timestamp']
-#     updatekey =  requestBody['updateKey']
-#     updateValue = requestBody['updateValue']
-#     return n,n,n,n,n,n,

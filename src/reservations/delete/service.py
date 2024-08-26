@@ -3,6 +3,7 @@ import json
 from custom_encoder import CustomEncoder
 import logging
 import os
+import datetime
 
 TABLE_NAME = os.environ.get("TABLE_NAME")
 logger = logging.getLogger()
@@ -14,64 +15,29 @@ class Service:
     table = dynamodb.Table(TABLE_NAME)
 
     @classmethod
-    def modifyReservation(cls, reservation_id, timestamp, updates):
+    def deleteReservation(cls, reservation_id: str, timestamp) -> dict:
         try:
-            # Construct the UpdateExpression and ExpressionAttributeValues
-            update_expression = "set "
-            expression_attribute_values = {}
-            updates['reservation_status'] = 'Cancel'
-            updates['deleted'] = 1
-            # Build the UpdateExpression and ExpressionAttributeValues
-            for index, (key, value) in enumerate(updates.items()):
-                if index > 0:
-                    update_expression += ", "
-                update_expression += f"{key} = :value{index}"
-                expression_attribute_values[f":value{index}"] = value
-
-            # Perform the update operation
             response = cls.table.update_item(
-                Key={
+            Key={
                     'reservation_id': reservation_id,
                     'timestamp': timestamp
+                },                UpdateExpression="set deleted = :deleted, last_updated = :last_updated",
+                ExpressionAttributeValues={
+                    ':deleted': 1,
+                    ':last_updated': datetime.datetime.now().isoformat()
                 },
-                UpdateExpression=update_expression,
-                ExpressionAttributeValues=expression_attribute_values,
-                ReturnValues='UPDATED_NEW'
+                ReturnValues="ALL_NEW"
             )
-
             body = {
-                'Operation': 'UPDATE',
+                'Operation': 'DELETE',
                 'Message': 'SUCCESS',
-                'UpdatedAttributes': response.get('Attributes', {})
+                'Item': response['Attributes']
             }
             return body
         except Exception as e:
-            logger.exception('Error updating reservation')
+            logger.exception(e)
             raise e
-
-    # @classmethod
-    # def modifyReservation(cls,reservation_id, timestamp, updateKey, updateValue):
-    #     try:
-    #         response = cls.table.update_item(
-    #             Key={
-    #                 'reservation_id': reservation_id,
-    #                 'timestamp': timestamp     
-    #             },
-    #             UpdateExpression='set %s = :value' % updateKey,
-    #             ExpressionAttributeValues={
-    #                 ':value': updateValue
-    #             },
-    #             ReturnValues='UPDATED_NEW'
-    #         )
-    #         body = {
-    #             'Operation': 'UPDATE',
-    #             'Message': 'SUCCESS',
-    #             'UpdatedAtributes': response
-    #         }
-    #         return body
-    #     except:
-    #         logger.exception('Do your custom code error handling here. I am just gonna log it out here!!')
-
+   
     @staticmethod
     def buildResponse(statusCode, body):
         response = {

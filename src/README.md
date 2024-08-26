@@ -10,7 +10,7 @@ Before you begin, make sure you have the following installed:
 
 - **AWS CLI**: [Install AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
 - **AWS SAM CLI**: [Install SAM CLI](https://docs.aws.amazon.com/serverless/latest/dg/install-sam-cli.html)
-
+- **Python 3.12**: [Install Python 3.12](https://www.python.org/downloads/release/python-3120/)
 
 ## Setup and Deployment
 
@@ -37,13 +37,17 @@ sam deploy --guided (use the --guide parameter only the first time)
 ```
 
 ### 4. **Validate Infrastructure Deploy**
-Go to the AWS console and open APIGateway, go to ReservationAPI and then Stage to copy the Enpoint URL.
-Like this:
+When sam deploy finished you will see the URL API, something like this:
+Outputs
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Key                 ApiUrl
+Description         The URL of the API Gateway endpoint
+Value               https://ph3uochjo9.execute-api.us-east-1.amazonaws.com/production/
 
 https://ph3uochjo9.execute-api.us-east-1.amazonaws.com/production
 
-### 5. **Create SNS Suscription**
-Go to AWS Console and the Simple Notification Service, go to the loanpro-reservations topic and create a Suscription in order to recive emails.
+### 5. **Create SNS Subscription**
+Go to AWS Console and the Simple Notification Service, go to the loanpro-reservations topic and create a Subscription in order to recive emails.
 
 ### 6. **Testing with Postman**
 #### a.- Create Reservation
@@ -115,10 +119,10 @@ Result expected:
 }
 ```
 
-#### e.- Delete Reservation
-Description: Deletes a reservation as a logic way.
-Endpoint: PUT /reservations
-URL Example: https://ph3uochjo9.execute-api.us-east-1.amazonaws.com/production/reservations
+#### e.- Cancel Reservation
+Description: Cancel a reservation as a logic way.
+Endpoint: DELETE /reservations
+URL Example: https://ph3uochjo9.execute-api.us-east-1.amazonaws.com/production/reservations/33e73dec-dfec-4088-83ee-8bcafda223ef/1724647522
 
 Result expected:
 ```bash

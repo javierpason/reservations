@@ -93,7 +93,7 @@ Resources:
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
 
-  # Reservation Function
+  # Reservation Function Endpoints.
   ListReservationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -239,8 +239,8 @@ Resources:
           Type: Api
           Properties:
             RestApiId: !Ref ReservationsAPIGateway
-            Path: /reservations
-            Method: put 
+            Path: /reservations/{reservation_id}/{timestamp}
+            Method: delete 
 
   GetReservationFunction:
     Type: AWS::Serverless::Function
@@ -279,6 +279,7 @@ Resources:
             Method: get 
 
   
+  # SQS Section
   SQSQueueEventBridge:
     Type: AWS::SQS::Queue
     Properties:
@@ -300,6 +301,7 @@ Resources:
       VisibilityTimeout: 60   
       ReceiveMessageWaitTimeSeconds: 20
 
+# EventBridge Rule.
   EventBridgeLoanProRule:
     Type: AWS::Events::Rule
     Properties:
@@ -335,7 +337,7 @@ Resources:
   SQSToSNSFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: loanpro-sqs-to-sns
+      FunctionName: loanpro-reservation-to-sns
       CodeUri: src/sqstosns/
       Handler: app.lambda_handler
       Runtime: python3.12
@@ -373,6 +375,46 @@ Resources:
   SnsTopicFinanceBooking:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: loanpro-reservations      
-   
+      TopicName: loanpro-reservations    
 
+  CreateSubscriptionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: loanpro-create-subscription
+      CodeUri: src/snsSubscription/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReservationsDBTable
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: '*'
+        - Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+              - sns:Subscribe                   
+            Resource: '*'
+      Environment:
+        Variables:
+          TOPIC_NAME: !Ref SnsTopicFinanceBooking
+      Architectures:
+        - x86_64
+      Events:       
+        SaveReservation:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ReservationsAPIGateway
+            Path: /subscription
+            Method: post
+
+Outputs:
+  ApiUrl:
+    Description: "The URL of the API Gateway endpoint"
+    Value: !Sub "https://${ReservationsAPIGateway}.execute-api.${AWS::Region}.amazonaws.com/production/"

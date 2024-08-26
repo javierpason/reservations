@@ -20,6 +20,7 @@ class Service:
             update_expression = "set "
             expression_attribute_values = {}
             updates['reservation_status'] = 'Updated'
+            
             # Build the UpdateExpression and ExpressionAttributeValues
             for index, (key, value) in enumerate(updates.items()):
                 if index > 0:
