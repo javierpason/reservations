@@ -26,20 +26,7 @@ def lambda_handler(event, context):
                         }
                     ]
                 )
-                # eventbridge.put_events(
-                #     Entries=[
-                #         {
-                #             'Source': 'my.reservation',
-                #             'DetailType': 'ReservationCreated',
-                #             'Detail': json.dumps({
-                #                 'reservationId': '1',
-                #                 'user': 'test',
-                #                 'details': 'details'
-                #             }),
-                #             'EventBusName': 'default'  # Use a custom event bus if needed
-                #         }
-                #     ]
-                # )
+               
         return {
             'statusCode': 200,
             'body': json.dumps('Processed records successfully!')

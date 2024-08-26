@@ -10,7 +10,6 @@ def lambda_handler(event, context):
     service = Service()   
 
     path_parameters = event.get('pathParameters', {})
-    body = json.loads(event.get('body', '{}')) if event.get('body') else {}
     reservation_id = path_parameters.get('reservation_id')
     timestamp = path_parameters.get('timestamp')
 
